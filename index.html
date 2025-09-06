@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin - Master KPI Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { margin:0; font-family:'Poppins', sans-serif; background:#f4f7f6; color: #333; }
+    .header { background:#4b0082; color: white; padding:15px 30px; font-weight:700; font-size: 1.2rem; display:flex; justify-content:space-between; align-items: center; }
+    .wrap { padding:20px; max-width:1600px; margin:0 auto; }
+    .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:20px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .controls select, .controls input { padding:10px; border:1px solid #ccc; border-radius:6px; font-family:'Poppins', sans-serif; background: #fff; }
+    .btn { padding:10px 18px; background:#e62222; color:#fff; border:none; font-weight:700; cursor:pointer; border-radius: 6px; transition: background 0.2s; }
+    .btn:hover { background: #c01e1e; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+    .kpi-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:20px; }
+    .card { background:#fff; border-radius:8px; padding:20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .card .title { font-size: 1rem; color: #555; margin-bottom: 10px; }
+    .card .value { font-size: 2.5rem; font-weight: 700; color: #4b0082; }
+    .card .subtext { font-size: 0.8rem; color: #777; margin-top:5px;}
+    h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px; color: #4b0082;}
+    .status { font-weight: 600; margin-left: 15px; }
+    #reportDetails { margin-top: 20px; }
+    .day-card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 15px; }
+    .day-header { font-weight: 700; font-size: 1.2rem; margin-bottom: 10px; }
+    .disposition-table { width: 100%; border-collapse: collapse; margin-top:10px; }
+    .disposition-table th, .disposition-table td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>Admin - Master KPI Tracker</div>
+    <div id="counselorNameDisplay"></div>
+  </div>
+  <div class="wrap">
+    <div class="controls">
+      <select id="centerSelect" required><option value="">Select Center...</option></select>
+      <select id="counselorSelect" required><option value="">Select Counselor...</option></select>
+      <input type="date" id="from" />
+      <input type="date" id="to" />
+      <button class="btn" id="btnRun" disabled>Run Report</button>
+      <div id="status" class="status"></div>
+    </div>
+
+    <h2>High-Level Summary</h2>
+    <div class="kpi-grid" id="summary-kpis">
+      <!-- KPIs will be loaded here -->
+    </div>
+
+    <h2 id="details-header">Daily Breakup</h2>
+    <div id="reportDetails"></div>
+  </div>
+
+  <script>
+    (function(){
+      var API_BASE = 'https://script.google.com/macros/s/AKfycbxWeSD-Wu8CDgOUNBaOkaTEi2zJGLX9voNF-Nyrzr0o-_aVY80qCQ68tFsufpbh0noZ/exec';
+
+      var centerSelect = document.getElementById('centerSelect');
+      var counselorSelect = document.getElementById('counselorSelect');
+      var fromEl = document.getElementById('from');
+      var toEl = document.getElementById('to');
+      var btnRun = document.getElementById('btnRun');
+      var statusEl = document.getElementById('status');
+      var reportDetailsEl = document.getElementById('reportDetails');
+      var summaryKpisEl = document.getElementById('summary-kpis');
+      var counselorNameDisplay = document.getElementById('counselorNameDisplay');
+
+      function fetchJson(url) {
+        statusEl.textContent = 'Loading...';
+        statusEl.style.color = '#333';
+        return fetch(url).then(function(response) {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        }).finally(function() {
+            statusEl.textContent = '';
+        });
+      }
+
+      function populateCenters() {
+        fetchJson(API_BASE + '?action=getcenters')
+          .then(function(data) {
+            if (data.ok && data.centers) {
+              centerSelect.innerHTML = '<option value="">Select Center...</option>';
+              data.centers.sort().forEach(function(center) {
+                var option = new Option(center, center);
+                centerSelect.add(option);
+              });
+            }
+          })
+          .catch(function() {
+            statusEl.textContent = 'Error loading centers.';
+            statusEl.style.color = 'red';
+          });
+      }
+
+      centerSelect.addEventListener('change', function() {
+        var center = this.value;
+        counselorSelect.innerHTML = '<option value="">Loading Counselors...</option>';
+        btnRun.disabled = true;
+        if (!center) {
+          counselorSelect.innerHTML = '<option value="">Select Counselor...</option>';
+          return;
+        }
+
+        fetchJson(API_BASE + '?action=getcounselors&center=' + encodeURIComponent(center))
+          .then(function(data) {
+            if (data.ok && data.counselors) {
+              counselorSelect.innerHTML = '<option value="ALL">All Counselors</option>';
+              data.counselors.forEach(function(counselor) {
+                var option = new Option(counselor.employeeId + ' (' + counselor.name + ')', counselor.employeeId);
+                counselorSelect.add(option);
+              });
+              btnRun.disabled = false;
+            }
+          })
+          .catch(function() {
+            statusEl.textContent = 'Error loading counselors.';
+            statusEl.style.color = 'red';
+          });
+      });
+
+      function renderReport(report) {
+          let totalAssigned = 0, totalActioned = 0, totalDue = 0;
+          summaryKpisEl.innerHTML = ''; // Clear summary
+          reportDetailsEl.innerHTML = ''; // Clear daily details
+
+          var sortedDates = Object.keys(report).sort((a, b) => new Date(b) - new Date(a));
+
+          if (sortedDates.length === 0) {
+              reportDetailsEl.innerHTML = '<p>No data to display for the selected period.</p>';
+          }
+
+          sortedDates.forEach(function(date) {
+              const dayData = report[date];
+              totalAssigned += dayData.assignedCount;
+              totalActioned += dayData.actionedCount;
+              totalDue += dayData.dueActionsCount;
+
+              let dispositionHtml = 'No actions taken.';
+              if(Object.keys(dayData.dispositions).length > 0) {
+                  dispositionHtml = '<table class="disposition-table"><thead><tr><th>Disposition</th><th>Count</th></tr></thead><tbody>';
+                  for(const [action, count] of Object.entries(dayData.dispositions)) {
+                      dispositionHtml += `<tr><td>${action}</td><td>${count}</td></tr>`;
+                  }
+                  dispositionHtml += '</tbody></table>';
+              }
+
+              const dayCardHtml = `
+                  <div class="day-card">
+                      <div class="day-header">${new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                      <div class="kpi-grid">
+                          <div class="card"><div class="title">Assigned</div><div class="value">${dayData.assignedCount}</div></div>
+                          <div class="card"><div class="title">Actioned</div><div class="value">${dayData.actionedCount}</div></div>
+                          <div class="card"><div class="title">Due (Missed)</div><div class="value">${dayData.dueActionsCount}</div></div>
+                          <div class="card"><div class="title">Completion</div><div class="value">${dayData.completionPercentage.toFixed(1)}%</div></div>
+                      </div>
+                      <h3 style="margin-top: 20px;">Dispositions</h3>
+                      ${dispositionHtml}
+                  </div>
+              `;
+              reportDetailsEl.innerHTML += dayCardHtml;
+          });
+          
+          const totalCompletion = totalAssigned > 0 ? ((totalActioned / totalAssigned) * 100).toFixed(1) + '%' : '0.0%';
+          summaryKpisEl.innerHTML = `
+            <div class="card"><div class="title">Total Assigned</div><div class="value">${totalAssigned}</div><div class="subtext">Leads needing action in period</div></div>
+            <div class="card"><div class="title">Total Actioned</div><div class="value">${totalActioned}</div><div class="subtext">Unique leads contacted</div></div>
+            <div class="card"><div class="title">Total Due (Missed)</div><div class="value">${totalDue}</div><div class="subtext">Assigned but not actioned</div></div>
+            <div class="card"><div class="title">Completion Rate</div><div class="value">${totalCompletion}</div><div class="subtext">Actioned / Assigned</div></div>
+          `;
+      }
+      
+      btnRun.addEventListener('click', function() {
+        var center = centerSelect.value;
+        var counselorId = counselorSelect.value;
+        var from = fromEl.value;
+        var to = toEl.value;
+        
+        if (!center || !counselorId || !from || !to) {
+            statusEl.textContent = 'Please fill all fields.';
+            statusEl.style.color = 'red';
+            return;
+        }
+
+        var selectedCounselorText = counselorSelect.options[counselorSelect.selectedIndex].text;
+        counselorNameDisplay.textContent = selectedCounselorText;
+
+        statusEl.textContent = 'Loading Report...';
+        statusEl.style.color = '#333';
+        btnRun.disabled = true;
+        reportDetailsEl.innerHTML = '';
+        summaryKpisEl.innerHTML = '';
+
+        var url = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(counselorId)}`;
+        
+        fetchJson(url)
+            .then(function(data) {
+                if(data.ok && Object.keys(data.report).length > 0) {
+                    renderReport(data.report);
+                    statusEl.textContent = 'Report loaded successfully!';
+                    statusEl.style.color = 'green';
+                } else if (data.ok) {
+                    statusEl.textContent = 'No data found for this period.';
+                    statusEl.style.color = '#555';
+                    summaryKpisEl.innerHTML = '<p>No summary data available.</p>';
+                    reportDetailsEl.innerHTML = '<p>No daily data available.</p>';
+                } else {
+                    statusEl.textContent = 'Error: ' + (data.error || 'Unknown error');
+                    statusEl.style.color = 'red';
+                }
+            })
+            .catch(function(err) {
+                statusEl.textContent = 'Failed to fetch report. Check console for details.';
+                statusEl.style.color = 'red';
+                console.error(err);
+            }).finally(function() {
+                btnRun.disabled = false;
+            });
+      });
+
+      // Initialize page
+      var toDate = new Date();
+      var fromDate = new Date();
+      fromDate.setDate(toDate.getDate() - 6);
+      toEl.value = toDate.toISOString().slice(0,10);
+      fromEl.value = fromDate.toISOString().slice(0,10);
+      populateCenters();
+
+    })();
+  </script>
+</body>
+</html>
+
