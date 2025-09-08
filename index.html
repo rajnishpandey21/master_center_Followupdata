@@ -45,8 +45,7 @@
 
     <h2>High-Level Summary</h2>
     <div class="kpi-grid" id="summary-kpis">
-      <!-- KPIs will be loaded here -->
-    </div>
+      </div>
 
     <h2 id="details-header">Daily Breakup</h2>
     <div id="reportDetails"></div>
@@ -54,7 +53,8 @@
 
   <script>
     (function(){
-      var API_BASE = 'https://script.google.com/macros/s/AKfycbxWeSD-Wu8CDgOUNBaOkaTEi2zJGLX9voNF-Nyrzr0o-_aVY80qCQ68tFsufpbh0noZ/exec';
+      // *** THIS IS THE UPDATED API URL ***
+      var API_BASE = 'https://script.google.com/macros/s/AKfycbxTHX4RNFV41cbFX8o6ataVhtVS13kiSiDS4uWizNeuZ3RKEOXpMBYivTWhYtvtiXg1sA/exec';
 
       var centerSelect = document.getElementById('centerSelect');
       var counselorSelect = document.getElementById('counselorSelect');
@@ -68,69 +68,50 @@
 
       function fetchJson(url) {
         statusEl.textContent = 'Loading...';
-        statusEl.style.color = '#333';
-        return fetch(url).then(function(response) {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        }).finally(function() {
-            statusEl.textContent = '';
+        btnRun.disabled = true;
+        return fetch(url).then(r => r.json()).finally(() => {
+          statusEl.textContent = '';
+          btnRun.disabled = false;
         });
       }
 
       function populateCenters() {
-        fetchJson(API_BASE + '?action=getcenters')
-          .then(function(data) {
-            if (data.ok && data.centers) {
-              centerSelect.innerHTML = '<option value="">Select Center...</option>';
-              data.centers.sort().forEach(function(center) {
-                var option = new Option(center, center);
-                centerSelect.add(option);
-              });
-            }
-          })
-          .catch(function() {
-            statusEl.textContent = 'Error loading centers.';
-            statusEl.style.color = 'red';
-          });
+        // Uses the getcenters endpoint from your main script
+        fetchJson(API_BASE + '?action=getcenters').then(data => {
+          if (data.ok && data.centers) {
+            centerSelect.innerHTML = '<option value="">Select Center...</option>';
+            data.centers.sort().forEach(center => centerSelect.add(new Option(center, center)));
+          }
+        }).catch(() => statusEl.textContent = 'Error loading centers.');
       }
 
       centerSelect.addEventListener('change', function() {
         var center = this.value;
         counselorSelect.innerHTML = '<option value="">Loading Counselors...</option>';
-        btnRun.disabled = true;
         if (!center) {
           counselorSelect.innerHTML = '<option value="">Select Counselor...</option>';
           return;
         }
-
-        fetchJson(API_BASE + '?action=getcounselors&center=' + encodeURIComponent(center))
-          .then(function(data) {
-            if (data.ok && data.counselors) {
-              counselorSelect.innerHTML = '<option value="ALL">All Counselors</option>';
-              data.counselors.forEach(function(counselor) {
-                var option = new Option(counselor.employeeId + ' (' + counselor.name + ')', counselor.employeeId);
-                counselorSelect.add(option);
-              });
-              btnRun.disabled = false;
-            }
-          })
-          .catch(function() {
-            statusEl.textContent = 'Error loading counselors.';
-            statusEl.style.color = 'red';
-          });
+        // Uses the getcounselors endpoint from your main script
+        fetchJson(`${API_BASE}?action=getcounselors&center=${encodeURIComponent(center)}`).then(data => {
+          if (data.ok && data.counselors) {
+            counselorSelect.innerHTML = '<option value="ALL">All Counselors</option>';
+            data.counselors.forEach(c => counselorSelect.add(new Option(`${c.name} (${c.employeeId})`, c.employeeId)));
+          }
+        }).catch(() => statusEl.textContent = 'Error loading counselors.');
       });
 
       function renderReport(report) {
           let totalAssigned = 0, totalActioned = 0, totalDue = 0;
-          summaryKpisEl.innerHTML = ''; // Clear summary
-          reportDetailsEl.innerHTML = ''; // Clear daily details
+          summaryKpisEl.innerHTML = '';
+          reportDetailsEl.innerHTML = '';
 
           var sortedDates = Object.keys(report).sort((a, b) => new Date(b) - new Date(a));
 
           if (sortedDates.length === 0) {
-              reportDetailsEl.innerHTML = '<p>No data to display for the selected period.</p>';
+              summaryKpisEl.innerHTML = '<p>No data found for this period.</p>';
+              reportDetailsEl.innerHTML = '';
+              return;
           }
 
           sortedDates.forEach(function(date) {
@@ -175,50 +156,26 @@
       
       btnRun.addEventListener('click', function() {
         var center = centerSelect.value;
-        var counselorId = counselorSelect.value;
+        var employeeCode = counselorSelect.value;
         var from = fromEl.value;
         var to = toEl.value;
         
-        if (!center || !counselorId || !from || !to) {
+        if (!center || !employeeCode || !from || !to) {
             statusEl.textContent = 'Please fill all fields.';
-            statusEl.style.color = 'red';
             return;
         }
 
-        var selectedCounselorText = counselorSelect.options[counselorSelect.selectedIndex].text;
-        counselorNameDisplay.textContent = selectedCounselorText;
-
-        statusEl.textContent = 'Loading Report...';
-        statusEl.style.color = '#333';
-        btnRun.disabled = true;
-        reportDetailsEl.innerHTML = '';
-        summaryKpisEl.innerHTML = '';
-
-        var url = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(counselorId)}`;
+        counselorNameDisplay.textContent = `${center} - ${counselorSelect.options[counselorSelect.selectedIndex].text}`;
+        var url = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(employeeCode)}`;
         
-        fetchJson(url)
-            .then(function(data) {
-                if(data.ok && Object.keys(data.report).length > 0) {
-                    renderReport(data.report);
-                    statusEl.textContent = 'Report loaded successfully!';
-                    statusEl.style.color = 'green';
-                } else if (data.ok) {
-                    statusEl.textContent = 'No data found for this period.';
-                    statusEl.style.color = '#555';
-                    summaryKpisEl.innerHTML = '<p>No summary data available.</p>';
-                    reportDetailsEl.innerHTML = '<p>No daily data available.</p>';
-                } else {
-                    statusEl.textContent = 'Error: ' + (data.error || 'Unknown error');
-                    statusEl.style.color = 'red';
-                }
-            })
-            .catch(function(err) {
-                statusEl.textContent = 'Failed to fetch report. Check console for details.';
-                statusEl.style.color = 'red';
-                console.error(err);
-            }).finally(function() {
-                btnRun.disabled = false;
-            });
+        fetchJson(url).then(data => {
+            if (data.ok) {
+                renderReport(data.report);
+                statusEl.textContent = 'Report loaded successfully!';
+            } else {
+                statusEl.textContent = `Error: ${data.error || 'Unknown error'}`;
+            }
+        }).catch(() => statusEl.textContent = 'Failed to fetch report.');
       });
 
       // Initialize page
@@ -233,4 +190,3 @@
   </script>
 </body>
 </html>
-
