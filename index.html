@@ -7,19 +7,22 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     body { margin:0; font-family:'Poppins', sans-serif; background:#f4f7f6; color: #333; }
-    .header { background:#4b0082; color: white; padding:15px 30px; font-weight:700; font-size: 1.2rem; display:flex; justify-content:space-between; align-items: center; }
+    .header { background:#1434A4; color: white; padding:15px 30px; font-weight:700; font-size: 1.2rem; display:flex; justify-content:space-between; align-items: center; }
     .wrap { padding:20px; max-width:1600px; margin:0 auto; }
     .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:20px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
     .controls select, .controls input { padding:10px; border:1px solid #ccc; border-radius:6px; font-family:'Poppins', sans-serif; background: #fff; }
-    .btn { padding:10px 18px; background:#e62222; color:#fff; border:none; font-weight:700; cursor:pointer; border-radius: 6px; transition: background 0.2s; }
-    .btn:hover { background: #c01e1e; }
-    .btn:disabled { background: #ccc; cursor: not-allowed; }
+    .btn { padding:10px 18px; color:#fff; border:none; font-weight:700; cursor:pointer; border-radius: 9999px; transition: background 0.2s, transform 0.1s; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+    .btn.primary { background:#1434A4; }
+    .btn.primary:hover { background:#0F2C81; transform: translateY(-1px); }
+    .btn.export { background:#1D6F42; }
+    .btn.export:hover { background:#165934; transform: translateY(-1px); }
+    .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
     .kpi-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:20px; }
     .card { background:#fff; border-radius:8px; padding:20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
     .card .title { font-size: 1rem; color: #555; margin-bottom: 10px; }
-    .card .value { font-size: 2.5rem; font-weight: 700; color: #4b0082; }
+    .card .value { font-size: 2.5rem; font-weight: 700; color: #1434A4; }
     .card .subtext { font-size: 0.8rem; color: #777; margin-top:5px;}
-    h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px; color: #4b0082;}
+    h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px; color: #1434A4;}
     .status { font-weight: 600; margin-left: 15px; }
     #reportDetails { margin-top: 20px; }
     .day-card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 15px; }
@@ -36,16 +39,18 @@
   <div class="wrap">
     <div class="controls">
       <select id="centerSelect" required><option value="">Select Center...</option></select>
-      <select id="counselorSelect" required><option value="">Select Counselor...</option></select>
+      <select id="counselorSelect" required disabled><option value="">Select Counselor...</option></select>
       <input type="date" id="from" />
       <input type="date" id="to" />
-      <button class="btn" id="btnRun" disabled>Run Report</button>
+      <button class="btn primary" id="btnRun" disabled>Run Report</button>
+      <button class="btn export" id="btnExportMaster">Export Master Data</button>
       <div id="status" class="status"></div>
     </div>
 
     <h2>High-Level Summary</h2>
     <div class="kpi-grid" id="summary-kpis">
-      </div>
+        <p>Please select a center and counselor to view summary data.</p>
+    </div>
 
     <h2 id="details-header">Daily Breakup</h2>
     <div id="reportDetails"></div>
@@ -53,30 +58,48 @@
 
   <script>
     (function(){
-      // *** THIS IS THE UPDATED API URL ***
-      var API_BASE = 'https://script.google.com/macros/s/AKfycbxTHX4RNFV41cbFX8o6ataVhtVS13kiSiDS4uWizNeuZ3RKEOXpMBYivTWhYtvtiXg1sA/exec';
+      var API_BASE = 'https://script.google.com/macros/s/AKfycbxZpRXqgawJcT-oSu4ou6ZaCmiZSVH0mxTcHFNOtMcFTgdJzT9zHInDU_4cHXloJp3yvA/exec';
 
       var centerSelect = document.getElementById('centerSelect');
       var counselorSelect = document.getElementById('counselorSelect');
       var fromEl = document.getElementById('from');
       var toEl = document.getElementById('to');
       var btnRun = document.getElementById('btnRun');
+      var btnExportMaster = document.getElementById('btnExportMaster');
       var statusEl = document.getElementById('status');
       var reportDetailsEl = document.getElementById('reportDetails');
       var summaryKpisEl = document.getElementById('summary-kpis');
       var counselorNameDisplay = document.getElementById('counselorNameDisplay');
 
+      // --- NEW: Date Restriction Logic ---
+      const now = new Date();
+      const cutoffDate = new Date('2025-09-21T00:00:00Z'); // Set to midnight UTC
+
+      if (now < cutoffDate) {
+          // If today is before the cutoff, replace the body with an access denied message.
+          document.body.innerHTML = `
+              <div class="header"><div>Admin - Master KPI Tracker</div></div>
+              <div class="wrap" style="text-align: center; padding-top: 50px;">
+                  <h2 style="color: #c01e1e;">Access Denied</h2>
+                  <p style="font-size: 1.2rem; color: #555;">The dashboard will become available on 21 September 2025.</p>
+              </div>
+          `;
+          return; // Stop all other script execution
+      }
+
       function fetchJson(url) {
         statusEl.textContent = 'Loading...';
         btnRun.disabled = true;
-        return fetch(url).then(r => r.json()).finally(() => {
+        return fetch(url).then(r => {
+            if (!r.ok) throw new Error(`Network response was not ok (${r.status})`);
+            return r.json();
+        }).finally(() => {
           statusEl.textContent = '';
-          btnRun.disabled = false;
+          validateControls();
         });
       }
 
       function populateCenters() {
-        // Uses the getcenters endpoint from your main script
         fetchJson(API_BASE + '?action=getcenters').then(data => {
           if (data.ok && data.centers) {
             centerSelect.innerHTML = '<option value="">Select Center...</option>';
@@ -87,48 +110,48 @@
 
       centerSelect.addEventListener('change', function() {
         var center = this.value;
-        counselorSelect.innerHTML = '<option value="">Loading Counselors...</option>';
+        counselorSelect.innerHTML = '<option value="">Loading...</option>';
+        counselorSelect.disabled = true;
         if (!center) {
           counselorSelect.innerHTML = '<option value="">Select Counselor...</option>';
+          validateControls();
           return;
         }
-        // Uses the getcounselors endpoint from your main script
         fetchJson(`${API_BASE}?action=getcounselors&center=${encodeURIComponent(center)}`).then(data => {
           if (data.ok && data.counselors) {
             counselorSelect.innerHTML = '<option value="ALL">All Counselors</option>';
-            data.counselors.forEach(c => counselorSelect.add(new Option(`${c.name} (${c.employeeId})`, c.employeeId)));
+            data.counselors.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => {
+                counselorSelect.add(new Option(`${c.name} (${c.employeeId})`, c.employeeId));
+            });
+            counselorSelect.disabled = false;
           }
         }).catch(() => statusEl.textContent = 'Error loading counselors.');
       });
+      
+      function validateControls() {
+        btnRun.disabled = !centerSelect.value || !counselorSelect.value || !fromEl.value || !toEl.value;
+      }
+      
+      [centerSelect, counselorSelect, fromEl, toEl].forEach(el => el.addEventListener('change', validateControls));
 
       function renderReport(report) {
+          // This function for the on-screen report remains unchanged
           let totalAssigned = 0, totalActioned = 0, totalDue = 0;
-          summaryKpisEl.innerHTML = '';
-          reportDetailsEl.innerHTML = '';
-
+          summaryKpisEl.innerHTML = ''; reportDetailsEl.innerHTML = '';
           var sortedDates = Object.keys(report).sort((a, b) => new Date(b) - new Date(a));
-
           if (sortedDates.length === 0) {
-              summaryKpisEl.innerHTML = '<p>No data found for this period.</p>';
-              reportDetailsEl.innerHTML = '';
-              return;
+              summaryKpisEl.innerHTML = '<p>No data found for the selected criteria.</p>'; return;
           }
-
           sortedDates.forEach(function(date) {
               const dayData = report[date];
-              totalAssigned += dayData.assignedCount;
-              totalActioned += dayData.actionedCount;
-              totalDue += dayData.dueActionsCount;
-
+              totalAssigned += dayData.assignedCount; totalActioned += dayData.actionedCount; totalDue += dayData.dueActionsCount;
               let dispositionHtml = 'No actions taken.';
               if(Object.keys(dayData.dispositions).length > 0) {
                   dispositionHtml = '<table class="disposition-table"><thead><tr><th>Disposition</th><th>Count</th></tr></thead><tbody>';
-                  for(const [action, count] of Object.entries(dayData.dispositions)) {
-                      dispositionHtml += `<tr><td>${action}</td><td>${count}</td></tr>`;
-                  }
+                  for(const [action, count] of Object.entries(dayData.dispositions)) { dispositionHtml += `<tr><td>${action}</td><td>${count}</td></tr>`; }
                   dispositionHtml += '</tbody></table>';
               }
-
+              const completionColor = dayData.completionPercentage < 90 ? 'style="color:#c01e1e;"' : '';
               const dayCardHtml = `
                   <div class="day-card">
                       <div class="day-header">${new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
@@ -136,54 +159,178 @@
                           <div class="card"><div class="title">Assigned</div><div class="value">${dayData.assignedCount}</div></div>
                           <div class="card"><div class="title">Actioned</div><div class="value">${dayData.actionedCount}</div></div>
                           <div class="card"><div class="title">Due (Missed)</div><div class="value">${dayData.dueActionsCount}</div></div>
-                          <div class="card"><div class="title">Completion</div><div class="value">${dayData.completionPercentage.toFixed(1)}%</div></div>
+                          <div class="card"><div class="title">Completion</div><div class="value" ${completionColor}>${dayData.completionPercentage.toFixed(1)}%</div></div>
                       </div>
                       <h3 style="margin-top: 20px;">Dispositions</h3>
                       ${dispositionHtml}
-                  </div>
-              `;
+                  </div>`;
               reportDetailsEl.innerHTML += dayCardHtml;
           });
-          
-          const totalCompletion = totalAssigned > 0 ? ((totalActioned / totalAssigned) * 100).toFixed(1) + '%' : '0.0%';
+          const totalCompletion = totalAssigned > 0 ? ((totalActioned / totalAssigned) * 100) : 0;
+          const totalCompletionColor = totalCompletion < 90 ? 'style="color:#c01e1e;"' : '';
           summaryKpisEl.innerHTML = `
-            <div class="card"><div class="title">Total Assigned</div><div class="value">${totalAssigned}</div><div class="subtext">Leads needing action in period</div></div>
-            <div class="card"><div class="title">Total Actioned</div><div class="value">${totalActioned}</div><div class="subtext">Unique leads contacted</div></div>
-            <div class="card"><div class="title">Total Due (Missed)</div><div class="value">${totalDue}</div><div class="subtext">Assigned but not actioned</div></div>
-            <div class="card"><div class="title">Completion Rate</div><div class="value">${totalCompletion}</div><div class="subtext">Actioned / Assigned</div></div>
-          `;
+            <div class="card"><div class="title">Total Assigned</div><div class="value">${totalAssigned}</div></div>
+            <div class="card"><div class="title">Total Actioned</div><div class="value">${totalActioned}</div></div>
+            <div class="card"><div class="title">Total Due (Missed)</div><div class="value">${totalDue}</div></div>
+            <div class="card"><div class="title">Completion Rate</div><div class="value" ${totalCompletionColor}>${totalCompletion.toFixed(1)}%</div></div>`;
       }
       
       btnRun.addEventListener('click', function() {
-        var center = centerSelect.value;
-        var employeeCode = counselorSelect.value;
-        var from = fromEl.value;
-        var to = toEl.value;
-        
-        if (!center || !employeeCode || !from || !to) {
-            statusEl.textContent = 'Please fill all fields.';
-            return;
-        }
-
+        var center = centerSelect.value; var employeeCode = counselorSelect.value;
+        var from = fromEl.value; var to = toEl.value;
         counselorNameDisplay.textContent = `${center} - ${counselorSelect.options[counselorSelect.selectedIndex].text}`;
         var url = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(employeeCode)}`;
-        
         fetchJson(url).then(data => {
-            if (data.ok) {
-                renderReport(data.report);
-                statusEl.textContent = 'Report loaded successfully!';
-            } else {
-                statusEl.textContent = `Error: ${data.error || 'Unknown error'}`;
-            }
+            if (data.ok) { renderReport(data.report); statusEl.textContent = 'Report loaded!'; } 
+            else { statusEl.textContent = `Error: ${data.error || 'Unknown error'}`; }
         }).catch(() => statusEl.textContent = 'Failed to fetch report.');
       });
 
-      // Initialize page
-      var toDate = new Date();
-      var fromDate = new Date();
-      fromDate.setDate(toDate.getDate() - 6);
-      toEl.value = toDate.toISOString().slice(0,10);
-      fromEl.value = fromDate.toISOString().slice(0,10);
+      async function exportMasterData() {
+        const from = fromEl.value;
+        const to = toEl.value;
+        if (!from || !to) { alert('Please select a valid date range first.'); return; }
+        statusEl.textContent = 'Starting master export... This may take a while.';
+        btnExportMaster.disabled = true;
+        try {
+            const counselorsData = {}; const dateRange = [];
+            let currentDate = new Date(from + 'T00:00:00');
+            const toDate = new Date(to + 'T00:00:00');
+            while(currentDate <= toDate){ dateRange.push(currentDate.toISOString().slice(0,10)); currentDate.setDate(currentDate.getDate() + 1); }
+            statusEl.textContent = 'Fetching all centers...';
+            const centersResponse = await fetch(`${API_BASE}?action=getcenters`);
+            const centersData = await centersResponse.json();
+            if (!centersData.ok) throw new Error('Could not fetch centers.');
+            for (const center of centersData.centers) {
+                statusEl.textContent = `Fetching counselors for ${center}...`;
+                const counselorsResponse = await fetch(`${API_BASE}?action=getcounselors&center=${encodeURIComponent(center)}`);
+                const centerCounselorsData = await counselorsResponse.json();
+                if (!centerCounselorsData.ok) continue;
+                for (const counselor of centerCounselorsData.counselors) {
+                    statusEl.textContent = `Fetching data for ${counselor.name} in ${center}...`;
+                    const reportUrl = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(counselor.employeeId)}`;
+                    const reportResponse = await fetch(reportUrl);
+                    const reportData = await reportResponse.json();
+                    if (reportData.ok && reportData.report) {
+                        const counselorKey = `${center}-${counselor.employeeId}`;
+                        if (!counselorsData[counselorKey]) {
+                            counselorsData[counselorKey] = { Center: center, 'Counsellor Name': counselor.name, 'Employee ID': counselor.employeeId, daily: {}, totalActioned: 0, totalAssigned: 0 };
+                        }
+                        for (const date in reportData.report) {
+                            const day = reportData.report[date];
+                            counselorsData[counselorKey].daily[date] = { Acted: day.actionedCount, Assigned: day.assignedCount };
+                            counselorsData[counselorKey].totalActioned += day.actionedCount; counselorsData[counselorKey].totalAssigned += day.assignedCount;
+                        }
+                    }
+                }
+            }
+            statusEl.textContent = 'Data compiled. Generating HTML report...';
+            generateAndDownloadHtml(counselorsData, dateRange);
+        } catch (error) { statusEl.textContent = `Error during export: ${error.message}`; } 
+        finally { btnExportMaster.disabled = false; statusEl.textContent = 'Master export complete!'; }
+      }
+
+      function generateAndDownloadHtml(data, dateRange) {
+        let tableRows = '';
+        const dailyTotals = dateRange.reduce((acc, date) => ({ ...acc, [date]: { Acted: 0, Assigned: 0 } }), {});
+        for (const key in data) {
+            const counselor = data[key];
+            let rowHtml = `<tr class="data-row"><td>${counselor.Center}</td><td>${counselor['Counsellor Name']}</td><td>${counselor['Employee ID']}</td>`;
+            dateRange.forEach(date => {
+                const dayData = counselor.daily[date];
+                const acted = dayData ? dayData.Acted : 0; const assigned = dayData ? dayData.Assigned : 0;
+                rowHtml += `<td>${acted}</td><td>${assigned}</td>`;
+                dailyTotals[date].Acted += acted; dailyTotals[date].Assigned += assigned;
+            });
+            const completion = counselor.totalAssigned > 0 ? (counselor.totalActioned / counselor.totalAssigned) * 100 : 0;
+            const remarks = completion < 90 ? 'Review Needed' : 'OK';
+            rowHtml += `<td>${completion.toFixed(1)}%</td><td>${remarks}</td></tr>`;
+            tableRows += rowHtml;
+        }
+        let totalRowHtml = '<tr class="total-row"><td></td><td colspan="2">Total</td>';
+        dateRange.forEach(date => { totalRowHtml += `<td>${dailyTotals[date].Acted}</td><td>${dailyTotals[date].Assigned}</td>`; });
+        totalRowHtml += '<td colspan="2"></td></tr>';
+        const htmlContent = `
+            <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Master KPI Report</title>
+                <style>body{font-family:'Poppins',sans-serif}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #a9a9a9;padding:6px 8px;text-align:center}.header-main{background-color:#fce5cd;font-weight:700}.header-sub{background-color:#0070c0;color:#fff;font-weight:700}.data-row:nth-child(odd){background-color:#e7e6e6}.data-row:nth-child(even){background-color:#f2f2f2}.total-row{background-color:#d9d9d9;font-weight:700}#exportBtn{padding:8px 12px;font-family:'Poppins',sans-serif;margin:0 0 15px 0;cursor:pointer;background:#1D6F42;color:#fff;border:none;border-radius:5px}</style>
+            </head><body>
+                <h1>Master KPI Report (${fromEl.value} to ${toEl.value})</h1>
+                <button id="exportBtn">Export to CSV</button>
+                <table id="reportTable">
+                    <thead>
+                        <tr>
+                            <th class="header-main" rowspan="2">Center</th><th class="header-main" rowspan="2">Counsellor Name</th><th class="header-main" rowspan="2">Employee ID</th>
+                            ${dateRange.map(date => `<th class="header-sub" colspan="2">${new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</th>`).join('')}
+                            <th class="header-sub" colspan="2">Overview</th>
+                        </tr>
+                        <tr>
+                            ${dateRange.map(() => '<th class="header-main">Acted Leads</th><th class="header-main">Assigned</th>').join('')}
+                            <th class="header-main">Completion %</th><th class="header-main">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tableRows}${totalRowHtml}</tbody>
+                </table>
+                <script>
+                    function downloadCsv() {
+                        const table = document.getElementById('reportTable');
+                        let csvContent = [];
+                        const header1 = [];
+                        table.rows[0].querySelectorAll('th').forEach(th => {
+                            header1.push(\`"\${th.textContent.trim()}"\`);
+                            const colspan = parseInt(th.getAttribute('colspan') || 1);
+                            for (let i = 1; i < colspan; i++) header1.push('');
+                        });
+                        csvContent.push(header1.join(','));
+                        const header2 = [];
+                        let rowspanOffset = 0;
+                        table.rows[0].querySelectorAll('th[rowspan="2"]').forEach(() => rowspanOffset++);
+                        for (let i = 0; i < rowspanOffset; i++) header2.push('');
+                        table.rows[1].querySelectorAll('th').forEach(th => header2.push(\`"\${th.textContent.trim()}"\`));
+                        csvContent.push(header2.join(','));
+                        for (let i = 2; i < table.rows.length; i++) {
+                            const rowData = [];
+                            table.rows[i].querySelectorAll('td').forEach(td => {
+                                rowData.push(\`"\${td.textContent.trim()}"\`);
+                                const colspan = parseInt(td.getAttribute('colspan') || 1);
+                                for (let j = 1; j < colspan; j++) rowData.push('');
+                            });
+                            csvContent.push(rowData.join(','));
+                        }
+                        const blob = new Blob([csvContent.join('\\n')], { type: 'text/csv;charset=utf-8;' });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = 'Master_Report_From_HTML.csv';
+                        link.click();
+                        URL.revokeObjectURL(link.href);
+                    }
+                    document.getElementById('exportBtn').addEventListener('click', downloadCsv);
+                <\/script>
+            </body></html>`;
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Styled_Master_Report_${fromEl.value}_to_${toEl.value}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }
+
+      btnExportMaster.addEventListener('click', exportMasterData);
+
+      // --- Initialize page ---
+      // Set min attribute for date pickers
+      const minDate = '2025-09-21';
+      fromEl.min = minDate;
+      toEl.min = minDate;
+      
+      // Set default dates
+      const todayForDefaults = new Date();
+      const startDateForDefaults = new Date(minDate + 'T00:00:00Z');
+      
+      fromEl.value = (todayForDefaults > startDateForDefaults ? todayForDefaults : startDateForDefaults).toISOString().slice(0,10);
+      toEl.value = todayForDefaults.toISOString().slice(0,10);
+      
       populateCenters();
 
     })();
