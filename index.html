@@ -58,7 +58,7 @@
 
   <script>
     (function(){
-      var API_BASE = 'https://script.google.com/macros/s/AKfycbxZpRXqgawJcT-oSu4ou6ZaCmiZSVH0mxTcHFNOtMcFTgdJzT9zHInDU_4cHXloJp3yvA/exec';
+      var API_BASE = 'https://script.google.com/macros/s/AKfycbyVQy8LPx3XcHNSYbycKlz3MruS3d-rRIm_IyDMDP7wKjjgEGu1-LvPOuXiAWUbFEYuhQ/exec';
 
       var centerSelect = document.getElementById('centerSelect');
       var counselorSelect = document.getElementById('counselorSelect');
@@ -70,22 +70,6 @@
       var reportDetailsEl = document.getElementById('reportDetails');
       var summaryKpisEl = document.getElementById('summary-kpis');
       var counselorNameDisplay = document.getElementById('counselorNameDisplay');
-
-      // --- NEW: Date Restriction Logic ---
-      const now = new Date();
-      const cutoffDate = new Date('2025-09-21T00:00:00Z'); // Set to midnight UTC
-
-      if (now < cutoffDate) {
-          // If today is before the cutoff, replace the body with an access denied message.
-          document.body.innerHTML = `
-              <div class="header"><div>Admin - Master KPI Tracker</div></div>
-              <div class="wrap" style="text-align: center; padding-top: 50px;">
-                  <h2 style="color: #c01e1e;">Access Denied</h2>
-                  <p style="font-size: 1.2rem; color: #555;">The dashboard will become available on 21 September 2025.</p>
-              </div>
-          `;
-          return; // Stop all other script execution
-      }
 
       function fetchJson(url) {
         statusEl.textContent = 'Loading...';
@@ -135,7 +119,6 @@
       [centerSelect, counselorSelect, fromEl, toEl].forEach(el => el.addEventListener('change', validateControls));
 
       function renderReport(report) {
-          // This function for the on-screen report remains unchanged
           let totalAssigned = 0, totalActioned = 0, totalDue = 0;
           summaryKpisEl.innerHTML = ''; reportDetailsEl.innerHTML = '';
           var sortedDates = Object.keys(report).sort((a, b) => new Date(b) - new Date(a));
@@ -192,67 +175,114 @@
         if (!from || !to) { alert('Please select a valid date range first.'); return; }
         statusEl.textContent = 'Starting master export... This may take a while.';
         btnExportMaster.disabled = true;
+
         try {
-            const counselorsData = {}; const dateRange = [];
-            let currentDate = new Date(from + 'T00:00:00');
-            const toDate = new Date(to + 'T00:00:00');
-            while(currentDate <= toDate){ dateRange.push(currentDate.toISOString().slice(0,10)); currentDate.setDate(currentDate.getDate() + 1); }
+            const counselorsData = {};
+            const allDates = new Set(); 
+
             statusEl.textContent = 'Fetching all centers...';
             const centersResponse = await fetch(`${API_BASE}?action=getcenters`);
             const centersData = await centersResponse.json();
             if (!centersData.ok) throw new Error('Could not fetch centers.');
+
             for (const center of centersData.centers) {
                 statusEl.textContent = `Fetching counselors for ${center}...`;
                 const counselorsResponse = await fetch(`${API_BASE}?action=getcounselors&center=${encodeURIComponent(center)}`);
                 const centerCounselorsData = await counselorsResponse.json();
                 if (!centerCounselorsData.ok) continue;
+
                 for (const counselor of centerCounselorsData.counselors) {
                     statusEl.textContent = `Fetching data for ${counselor.name} in ${center}...`;
                     const reportUrl = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(counselor.employeeId)}`;
-                    const reportResponse = await fetch(reportUrl);
-                    const reportData = await reportResponse.json();
-                    if (reportData.ok && reportData.report) {
-                        const counselorKey = `${center}-${counselor.employeeId}`;
-                        if (!counselorsData[counselorKey]) {
-                            counselorsData[counselorKey] = { Center: center, 'Counsellor Name': counselor.name, 'Employee ID': counselor.employeeId, daily: {}, totalActioned: 0, totalAssigned: 0 };
+                    
+                    try {
+                        const reportResponse = await fetch(reportUrl);
+                        const reportData = await reportResponse.json();
+
+                        if (reportData.ok && reportData.report) {
+                            const counselorKey = `${center}-${counselor.employeeId}`;
+                            if (!counselorsData[counselorKey]) {
+                                counselorsData[counselorKey] = { Center: center, 'Counsellor Name': counselor.name, 'Employee ID': counselor.employeeId, daily: {}, totalActioned: 0, totalAssigned: 0 };
+                            }
+                            for (const date in reportData.report) {
+                                allDates.add(date);
+                                const day = reportData.report[date];
+                                counselorsData[counselorKey].daily[date] = { Acted: day.actionedCount, Assigned: day.assignedCount };
+                                counselorsData[counselorKey].totalActioned += day.actionedCount;
+                                counselorsData[counselorKey].totalAssigned += day.assignedCount;
+                            }
                         }
-                        for (const date in reportData.report) {
-                            const day = reportData.report[date];
-                            counselorsData[counselorKey].daily[date] = { Acted: day.actionedCount, Assigned: day.assignedCount };
-                            counselorsData[counselorKey].totalActioned += day.actionedCount; counselorsData[counselorKey].totalAssigned += day.assignedCount;
-                        }
+                    } catch (counselorError) {
+                        console.error(`Skipping counselor ${counselor.name} due to an error:`, counselorError);
+                        statusEl.textContent = `Skipping ${counselor.name}...`;
                     }
                 }
             }
+
             statusEl.textContent = 'Data compiled. Generating HTML report...';
-            generateAndDownloadHtml(counselorsData, dateRange);
+            const sortedDateRange = Array.from(allDates).sort();
+            generateAndDownloadHtml(counselorsData, sortedDateRange);
+
         } catch (error) { statusEl.textContent = `Error during export: ${error.message}`; } 
         finally { btnExportMaster.disabled = false; statusEl.textContent = 'Master export complete!'; }
       }
 
       function generateAndDownloadHtml(data, dateRange) {
+        // --- NEW: COLOR LOGIC ---
+        const colorPalette = ['#FFFACD', '#F5F5F5', '#ADD8E6', '#F0FFF0', '#E6E6FA', '#FFF0F5', '#F0F8FF', '#FAEBD7'];
+        const centerColors = {};
+        let colorIndex = 0;
+        
         let tableRows = '';
         const dailyTotals = dateRange.reduce((acc, date) => ({ ...acc, [date]: { Acted: 0, Assigned: 0 } }), {});
-        for (const key in data) {
-            const counselor = data[key];
-            let rowHtml = `<tr class="data-row"><td>${counselor.Center}</td><td>${counselor['Counsellor Name']}</td><td>${counselor['Employee ID']}</td>`;
+
+        // Sort data by Center then by Counselor Name
+        const sortedData = Object.values(data).sort((a, b) => {
+            if (a.Center < b.Center) return -1;
+            if (a.Center > b.Center) return 1;
+            return a['Counsellor Name'].localeCompare(b['Counsellor Name']);
+        });
+
+        sortedData.forEach(counselor => {
+            // Assign a color to the center if it doesn't have one
+            if (!centerColors[counselor.Center]) {
+                centerColors[counselor.Center] = colorPalette[colorIndex % colorPalette.length];
+                colorIndex++;
+            }
+            const rowColor = centerColors[counselor.Center];
+
+            let rowHtml = `<tr style="background-color:${rowColor};"><td><b>${counselor.Center}</b></td><td>${counselor['Counsellor Name']}</td><td>${counselor['Employee ID']}</td>`;
             dateRange.forEach(date => {
                 const dayData = counselor.daily[date];
-                const acted = dayData ? dayData.Acted : 0; const assigned = dayData ? dayData.Assigned : 0;
-                rowHtml += `<td>${acted}</td><td>${assigned}</td>`;
-                dailyTotals[date].Acted += acted; dailyTotals[date].Assigned += assigned;
+                const acted = dayData ? dayData.Acted : 0;
+                const assigned = dayData ? dayData.Assigned : 0;
+                rowHtml += `<td>${assigned}</td><td>${acted}</td>`; // Swapped order
+                dailyTotals[date].Acted += acted;
+                dailyTotals[date].Assigned += assigned;
             });
             const completion = counselor.totalAssigned > 0 ? (counselor.totalActioned / counselor.totalAssigned) * 100 : 0;
             const remarks = completion < 90 ? 'Review Needed' : 'OK';
             rowHtml += `<td>${completion.toFixed(1)}%</td><td>${remarks}</td></tr>`;
             tableRows += rowHtml;
-        }
+        });
+
         let totalRowHtml = '<tr class="total-row"><td></td><td colspan="2">Total</td>';
-        dateRange.forEach(date => { totalRowHtml += `<td>${dailyTotals[date].Acted}</td><td>${dailyTotals[date].Assigned}</td>`; });
+        dateRange.forEach(date => {
+            totalRowHtml += `<td>${dailyTotals[date].Assigned}</td><td>${dailyTotals[date].Acted}</td>`; // Swapped order
+        });
         totalRowHtml += '<td colspan="2"></td></tr>';
+
         const htmlContent = `
             <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Master KPI Report</title>
-                <style>body{font-family:'Poppins',sans-serif}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #a9a9a9;padding:6px 8px;text-align:center}.header-main{background-color:#fce5cd;font-weight:700}.header-sub{background-color:#0070c0;color:#fff;font-weight:700}.data-row:nth-child(odd){background-color:#e7e6e6}.data-row:nth-child(even){background-color:#f2f2f2}.total-row{background-color:#d9d9d9;font-weight:700}#exportBtn{padding:8px 12px;font-family:'Poppins',sans-serif;margin:0 0 15px 0;cursor:pointer;background:#1D6F42;color:#fff;border:none;border-radius:5px}</style>
+                <style>
+                    body{font-family:'Poppins',sans-serif}
+                    table{border-collapse:collapse;width:100%;font-size:12px}
+                    th,td{border:1px solid #a9a9a9;padding:6px 8px;text-align:center}
+                    .header-main{background-color:#fce5cd;font-weight:700}
+                    .header-sub{background-color:#0070c0;color:#fff;font-weight:700}
+                    .total-row{background-color:#d9d9d9;font-weight:700}
+                    #exportBtn{padding:8px 12px;font-family:'Poppins',sans-serif;margin:0 0 15px 0;cursor:pointer;background:#1D6F42;color:#fff;border:none;border-radius:5px}
+                </style>
             </head><body>
                 <h1>Master KPI Report (${fromEl.value} to ${toEl.value})</h1>
                 <button id="exportBtn">Export to CSV</button>
@@ -264,7 +294,7 @@
                             <th class="header-sub" colspan="2">Overview</th>
                         </tr>
                         <tr>
-                            ${dateRange.map(() => '<th class="header-main">Acted Leads</th><th class="header-main">Assigned</th>').join('')}
+                            ${dateRange.map(() => '<th class="header-main">Assigned</th><th class="header-main">Acted Leads</th>').join('')}
                             <th class="header-main">Completion %</th><th class="header-main">Remarks</th>
                         </tr>
                     </thead>
@@ -290,7 +320,7 @@
                         for (let i = 2; i < table.rows.length; i++) {
                             const rowData = [];
                             table.rows[i].querySelectorAll('td').forEach(td => {
-                                rowData.push(\`"\${td.textContent.trim()}"\`);
+                                rowData.push(\`"\${td.textContent.trim().replace(/"/g, '""')}"\`);
                                 const colspan = parseInt(td.getAttribute('colspan') || 1);
                                 for (let j = 1; j < colspan; j++) rowData.push('');
                             });
@@ -319,17 +349,15 @@
       btnExportMaster.addEventListener('click', exportMasterData);
 
       // --- Initialize page ---
-      // Set min attribute for date pickers
       const minDate = '2025-09-21';
       fromEl.min = minDate;
       toEl.min = minDate;
       
-      // Set default dates
-      const todayForDefaults = new Date();
-      const startDateForDefaults = new Date(minDate + 'T00:00:00Z');
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
       
-      fromEl.value = (todayForDefaults > startDateForDefaults ? todayForDefaults : startDateForDefaults).toISOString().slice(0,10);
-      toEl.value = todayForDefaults.toISOString().slice(0,10);
+      fromEl.value = minDate;
+      toEl.value = todayStr;
       
       populateCenters();
 
