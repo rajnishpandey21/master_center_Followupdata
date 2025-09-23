@@ -56,9 +56,9 @@
     <div id="reportDetails"></div>
   </div>
 
-  <script>
+<script>
     (function(){
-      var API_BASE = 'https://script.google.com/macros/s/AKfycbyVQy8LPx3XcHNSYbycKlz3MruS3d-rRIm_IyDMDP7wKjjgEGu1-LvPOuXiAWUbFEYuhQ/exec';
+      var API_BASE = 'https://script.google.com/macros/s/AKfycbyATv3iwTAidwXcymASVC0qi6XIoaqvWnGk5x1pVfYCpG6mo-1EbVZOAIcug-lbB-EyFQ/exec';
 
       var centerSelect = document.getElementById('centerSelect');
       var counselorSelect = document.getElementById('counselorSelect');
@@ -118,38 +118,65 @@
       
       [centerSelect, counselorSelect, fromEl, toEl].forEach(el => el.addEventListener('change', validateControls));
 
-      function renderReport(report) {
-          let totalAssigned = 0, totalActioned = 0, totalDue = 0;
+      function renderReport(report, employeeCodeFilter) {
+          let totalAssigned = 0, totalActioned = 0;
           summaryKpisEl.innerHTML = ''; reportDetailsEl.innerHTML = '';
           var sortedDates = Object.keys(report).sort((a, b) => new Date(b) - new Date(a));
+          
           if (sortedDates.length === 0) {
               summaryKpisEl.innerHTML = '<p>No data found for the selected criteria.</p>'; return;
           }
+
           sortedDates.forEach(function(date) {
-              const dayData = report[date];
-              totalAssigned += dayData.assignedCount; totalActioned += dayData.actionedCount; totalDue += dayData.dueActionsCount;
+              const allCounselorDataForDay = report[date] || {};
+              let dailyData;
+
+              if (employeeCodeFilter === 'ALL') {
+                  dailyData = { assignedCount: 0, actionedCount: 0, dispositions: {} };
+                  for (const empId in allCounselorDataForDay) {
+                      dailyData.assignedCount += allCounselorDataForDay[empId].assignedCount;
+                      dailyData.actionedCount += allCounselorDataForDay[empId].actionedCount;
+                      for (const [action, count] of Object.entries(allCounselorDataForDay[empId].dispositions)) {
+                          dailyData.dispositions[action] = (dailyData.dispositions[action] || 0) + count;
+                      }
+                  }
+              } else {
+                  dailyData = allCounselorDataForDay[employeeCodeFilter];
+              }
+
+              if (!dailyData || dailyData.assignedCount === 0 && dailyData.actionedCount === 0) return;
+
+              // These are now calculated based on the accurate backend data
+              dailyData.dueActionsCount = dailyData.assignedCount - dailyData.actionedCount;
+              dailyData.completionPercentage = dailyData.assignedCount > 0 ? (dailyData.actionedCount / dailyData.assignedCount) * 100 : 0;
+              
+              totalAssigned += dailyData.assignedCount; 
+              totalActioned += dailyData.actionedCount;
+
               let dispositionHtml = 'No actions taken.';
-              if(Object.keys(dayData.dispositions).length > 0) {
+              if(Object.keys(dailyData.dispositions).length > 0) {
                   dispositionHtml = '<table class="disposition-table"><thead><tr><th>Disposition</th><th>Count</th></tr></thead><tbody>';
-                  for(const [action, count] of Object.entries(dayData.dispositions)) { dispositionHtml += `<tr><td>${action}</td><td>${count}</td></tr>`; }
+                  for(const [action, count] of Object.entries(dailyData.dispositions)) { dispositionHtml += `<tr><td>${action}</td><td>${count}</td></tr>`; }
                   dispositionHtml += '</tbody></table>';
               }
-              const completionColor = dayData.completionPercentage < 90 ? 'style="color:#c01e1e;"' : '';
+              const completionColor = dailyData.completionPercentage < 90 ? 'style="color:#c01e1e;"' : '';
               const dayCardHtml = `
                   <div class="day-card">
                       <div class="day-header">${new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                       <div class="kpi-grid">
-                          <div class="card"><div class="title">Assigned</div><div class="value">${dayData.assignedCount}</div></div>
-                          <div class="card"><div class="title">Actioned</div><div class="value">${dayData.actionedCount}</div></div>
-                          <div class="card"><div class="title">Due (Missed)</div><div class="value">${dayData.dueActionsCount}</div></div>
-                          <div class="card"><div class="title">Completion</div><div class="value" ${completionColor}>${dayData.completionPercentage.toFixed(1)}%</div></div>
+                          <div class="card"><div class="title">Assigned</div><div class="value">${dailyData.assignedCount}</div></div>
+                          <div class="card"><div class="title">Actioned</div><div class="value">${dailyData.actionedCount}</div></div>
+                          <div class="card"><div class="title">Due (Missed)</div><div class="value">${dailyData.dueActionsCount}</div></div>
+                          <div class="card"><div class="title">Completion</div><div class="value" ${completionColor}>${dailyData.completionPercentage.toFixed(1)}%</div></div>
                       </div>
                       <h3 style="margin-top: 20px;">Dispositions</h3>
                       ${dispositionHtml}
                   </div>`;
               reportDetailsEl.innerHTML += dayCardHtml;
           });
-          const totalCompletion = totalAssigned > 0 ? ((totalActioned / totalAssigned) * 100) : 0;
+          
+          let totalDue = totalAssigned - totalActioned;
+          const totalCompletion = totalAssigned > 0 ? (totalActioned / totalAssigned) * 100 : 0;
           const totalCompletionColor = totalCompletion < 90 ? 'style="color:#c01e1e;"' : '';
           summaryKpisEl.innerHTML = `
             <div class="card"><div class="title">Total Assigned</div><div class="value">${totalAssigned}</div></div>
@@ -162,9 +189,10 @@
         var center = centerSelect.value; var employeeCode = counselorSelect.value;
         var from = fromEl.value; var to = toEl.value;
         counselorNameDisplay.textContent = `${center} - ${counselorSelect.options[counselorSelect.selectedIndex].text}`;
+        // The backend parameter is just employeeCode, but we handle "ALL" now
         var url = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(employeeCode)}`;
         fetchJson(url).then(data => {
-            if (data.ok) { renderReport(data.report); statusEl.textContent = 'Report loaded!'; } 
+            if (data.ok) { renderReport(data.report, employeeCode); statusEl.textContent = 'Report loaded!'; } 
             else { statusEl.textContent = `Error: ${data.error || 'Unknown error'}`; }
         }).catch(() => statusEl.textContent = 'Failed to fetch report.');
       });
@@ -206,10 +234,13 @@
                             }
                             for (const date in reportData.report) {
                                 allDates.add(date);
-                                const day = reportData.report[date];
-                                counselorsData[counselorKey].daily[date] = { Acted: day.actionedCount, Assigned: day.assignedCount };
-                                counselorsData[counselorKey].totalActioned += day.actionedCount;
-                                counselorsData[counselorKey].totalAssigned += day.assignedCount;
+                                // Correctly access the nested data for the specific employee
+                                const day = reportData.report[date][counselor.employeeId];
+                                if (day) {
+                                    counselorsData[counselorKey].daily[date] = { Acted: day.actionedCount, Assigned: day.assignedCount };
+                                    counselorsData[counselorKey].totalActioned += day.actionedCount;
+                                    counselorsData[counselorKey].totalAssigned += day.assignedCount;
+                                }
                             }
                         }
                     } catch (counselorError) {
@@ -228,7 +259,6 @@
       }
 
       function generateAndDownloadHtml(data, dateRange) {
-        // --- NEW: COLOR LOGIC ---
         const colorPalette = ['#FFFACD', '#F5F5F5', '#ADD8E6', '#F0FFF0', '#E6E6FA', '#FFF0F5', '#F0F8FF', '#FAEBD7'];
         const centerColors = {};
         let colorIndex = 0;
@@ -236,7 +266,6 @@
         let tableRows = '';
         const dailyTotals = dateRange.reduce((acc, date) => ({ ...acc, [date]: { Acted: 0, Assigned: 0 } }), {});
 
-        // Sort data by Center then by Counselor Name
         const sortedData = Object.values(data).sort((a, b) => {
             if (a.Center < b.Center) return -1;
             if (a.Center > b.Center) return 1;
@@ -244,7 +273,6 @@
         });
 
         sortedData.forEach(counselor => {
-            // Assign a color to the center if it doesn't have one
             if (!centerColors[counselor.Center]) {
                 centerColors[counselor.Center] = colorPalette[colorIndex % colorPalette.length];
                 colorIndex++;
@@ -256,7 +284,7 @@
                 const dayData = counselor.daily[date];
                 const acted = dayData ? dayData.Acted : 0;
                 const assigned = dayData ? dayData.Assigned : 0;
-                rowHtml += `<td>${assigned}</td><td>${acted}</td>`; // Swapped order
+                rowHtml += `<td>${assigned}</td><td>${acted}</td>`;
                 dailyTotals[date].Acted += acted;
                 dailyTotals[date].Assigned += assigned;
             });
@@ -268,7 +296,7 @@
 
         let totalRowHtml = '<tr class="total-row"><td></td><td colspan="2">Total</td>';
         dateRange.forEach(date => {
-            totalRowHtml += `<td>${dailyTotals[date].Assigned}</td><td>${dailyTotals[date].Acted}</td>`; // Swapped order
+            totalRowHtml += `<td>${dailyTotals[date].Assigned}</td><td>${dailyTotals[date].Acted}</td>`;
         });
         totalRowHtml += '<td colspan="2"></td></tr>';
 
@@ -348,7 +376,6 @@
 
       btnExportMaster.addEventListener('click', exportMasterData);
 
-      // --- Initialize page ---
       const minDate = '2025-09-21';
       fromEl.min = minDate;
       toEl.min = minDate;
