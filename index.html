@@ -1,64 +1,412 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Admin - Master KPI Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
-    body { margin:0; font-family:'Poppins', sans-serif; background:#f4f7f6; color: #333; }
-    .header { background:#1434A4; color: white; padding:15px 30px; font-weight:700; font-size: 1.2rem; display:flex; justify-content:space-between; align-items: center; }
-    .wrap { padding:20px; max-width:1600px; margin:0 auto; }
-    .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:20px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    .controls select, .controls input { padding:10px; border:1px solid #ccc; border-radius:6px; font-family:'Poppins', sans-serif; background: #fff; }
-    .btn { padding:10px 18px; color:#fff; border:none; font-weight:700; cursor:pointer; border-radius: 9999px; transition: background 0.2s, transform 0.1s; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
-    .btn.primary { background:#1434A4; }
-    .btn.primary:hover { background:#0F2C81; transform: translateY(-1px); }
-    .btn.export { background:#1D6F42; }
-    .btn.export:hover { background:#165934; transform: translateY(-1px); }
-    .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
-    .kpi-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:20px; }
-    .card { background:#fff; border-radius:8px; padding:20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    .card .title { font-size: 1rem; color: #555; margin-bottom: 10px; }
-    .card .value { font-size: 2.5rem; font-weight: 700; color: #1434A4; }
-    .card .subtext { font-size: 0.8rem; color: #777; margin-top:5px;}
-    h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px; color: #1434A4;}
-    .status { font-weight: 600; margin-left: 15px; }
-    #reportDetails { margin-top: 20px; }
-    .day-card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 15px; }
-    .day-header { font-weight: 700; font-size: 1.2rem; margin-bottom: 10px; }
-    .disposition-table { width: 100%; border-collapse: collapse; margin-top:10px; }
-    .disposition-table th, .disposition-table td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
+    :root {
+      --primary: #1434A4;
+      --primary-light: #2952cc;
+      --accent: #FFC107;
+      --bg: #f0f2f5;
+      --card-bg: #ffffff;
+      --text: #333;
+      --text-muted: #777;
+      --success: #27ae60;
+      --danger: #e74c3c;
+      --border: #e8ecf1;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+      color: white;
+      padding: 16px 30px;
+      font-weight: 700;
+      font-size: 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-left i {
+      font-size: 1.4rem;
+    }
+
+    #counselorNameDisplay {
+      font-weight: 400;
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    /* Main */
+    .wrap {
+      padding: 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      margin-bottom: 24px;
+    }
+
+    .controls select,
+    .controls input[type="date"] {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: 'Poppins', sans-serif;
+      background: #fafbfc;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+
+    .controls select:focus,
+    .controls input[type="date"]:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .btn {
+      padding: 10px 20px;
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn.primary {
+      background: var(--primary);
+    }
+
+    .btn.primary:hover {
+      background: var(--primary-light);
+      transform: translateY(-1px);
+    }
+
+    .btn.export {
+      background: #1D6F42;
+    }
+
+    .btn.export:hover {
+      background: #165934;
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .status {
+      font-weight: 600;
+      margin-left: 8px;
+      color: var(--primary);
+      font-size: 0.9rem;
+    }
+
+    /* Section headings */
+    h2 {
+      color: var(--primary);
+      font-size: 1.3rem;
+      margin-top: 36px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h2 i {
+      font-size: 1.1rem;
+      opacity: 0.7;
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 22px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      border-left: 4px solid var(--primary);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .card .title {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .card .value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .card .subtext {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    .card.success {
+      border-left-color: var(--success);
+    }
+
+    .card.success .value {
+      color: var(--success);
+    }
+
+    .card.danger {
+      border-left-color: var(--danger);
+    }
+
+    .card.danger .value {
+      color: var(--danger);
+    }
+
+    .card.accent {
+      border-left-color: var(--accent);
+    }
+
+    .card.accent .value {
+      color: #e6a800;
+    }
+
+    /* Charts */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .chart-card h3 {
+      font-size: 1rem;
+      color: var(--text);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-card h3 i {
+      color: var(--primary);
+      font-size: 0.9rem;
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+    }
+
+    .chart-container.wide {
+      height: 300px;
+    }
+
+    .chart-container.square {
+      height: 300px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    /* Day Cards */
+    #reportDetails {
+      margin-top: 20px;
+    }
+
+    .day-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+      margin-bottom: 16px;
+      border-left: 4px solid var(--primary);
+    }
+
+    .day-header {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 14px;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .day-header i {
+      font-size: 0.9rem;
+    }
+
+    .disposition-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .disposition-table th {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 2px solid var(--primary);
+      color: var(--primary);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+    }
+
+    .disposition-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+
+    .disposition-table tr:hover {
+      background: #f8f9fb;
+    }
+
+    /* Placeholder */
+    .placeholder-text {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 20px 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
   </style>
 </head>
+
 <body>
   <div class="header">
-    <div>Admin - Master KPI Tracker</div>
+    <div class="header-left"><i class="fa fa-chart-line"></i> Admin - Master KPI Tracker</div>
     <div id="counselorNameDisplay"></div>
   </div>
   <div class="wrap">
+    <!-- Controls -->
     <div class="controls">
-      <select id="centerSelect" required><option value="">Select Center...</option></select>
-      <select id="counselorSelect" required disabled><option value="">Select Counselor...</option></select>
+      <select id="centerSelect" required>
+        <option value="">Select Center...</option>
+      </select>
+      <select id="counselorSelect" required disabled>
+        <option value="">Select Counselor...</option>
+      </select>
       <input type="date" id="from" />
       <input type="date" id="to" />
-      <button class="btn primary" id="btnRun" disabled>Run Report</button>
-      <button class="btn export" id="btnExportMaster">Export Master Data</button>
+      <button class="btn primary" id="btnRun" disabled><i class="fa fa-play"></i> Run Report</button>
+      <button class="btn export" id="btnExportMaster"><i class="fa fa-file-export"></i> Export Master Data</button>
       <div id="status" class="status"></div>
     </div>
 
-    <h2>High-Level Summary</h2>
+    <!-- Summary KPIs -->
+    <h2><i class="fa fa-gauge-high"></i> High-Level Summary</h2>
     <div class="kpi-grid" id="summary-kpis">
-        <p>Please select a center and counselor to view summary data.</p>
+      <p class="placeholder-text">Please select a center and counselor, then click "Run Report" to view data.</p>
     </div>
 
-    <h2 id="details-header">Daily Breakup</h2>
+    <!-- Charts Section -->
+    <h2><i class="fa fa-chart-area"></i> Trend Analysis</h2>
+    <div id="chartsSection" style="display:none;">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3><i class="fa fa-chart-line"></i> Daily Assigned vs Actioned</h3>
+          <div class="chart-container wide"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fa fa-percent"></i> Completion Rate Trend</h3>
+          <div class="chart-container wide"><canvas id="completionChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fa fa-chart-pie"></i> Disposition Breakdown</h3>
+          <div class="chart-container square"><canvas id="dispositionChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fa fa-chart-bar"></i> Daily Missed Leads</h3>
+          <div class="chart-container wide"><canvas id="missedChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div id="chartsPlaceholder">
+      <p class="placeholder-text">Charts will appear here after you run a report.</p>
+    </div>
+
+    <!-- Daily Breakup -->
+    <h2><i class="fa fa-calendar-days"></i> Daily Breakup</h2>
     <div id="reportDetails"></div>
   </div>
 
-<script>
-    (function(){
-      var API_BASE = 'https://script.google.com/macros/s/AKfycbwguUkMt32RtWsIvBODnHo0HZEF-3B8CD0TCdzq8utulDQfQSkUlzX8FUCHZJMwuO6Wow/exec';
+  <script>
+    (function () {
+      var API_BASE = 'https://script.google.com/macros/s/AKfycbyQmHECCvpUm0QUSI1nnxIaacG9smhQNThidzJu4U_RKrlsrqsUCCodkYT4-iCMlcqP/exec';
 
       var centerSelect = document.getElementById('centerSelect');
       var counselorSelect = document.getElementById('counselorSelect');
@@ -70,13 +418,24 @@
       var reportDetailsEl = document.getElementById('reportDetails');
       var summaryKpisEl = document.getElementById('summary-kpis');
       var counselorNameDisplay = document.getElementById('counselorNameDisplay');
+      var chartsSection = document.getElementById('chartsSection');
+      var chartsPlaceholder = document.getElementById('chartsPlaceholder');
+
+      // Chart instances (to destroy before re-creating)
+      var chartInstances = {};
+
+      function destroyCharts() {
+        Object.keys(chartInstances).forEach(function (key) {
+          if (chartInstances[key]) { chartInstances[key].destroy(); chartInstances[key] = null; }
+        });
+      }
 
       function fetchJson(url) {
         statusEl.textContent = 'Loading...';
         btnRun.disabled = true;
         return fetch(url).then(r => {
-            if (!r.ok) throw new Error(`Network response was not ok (${r.status})`);
-            return r.json();
+          if (!r.ok) throw new Error(`Network response was not ok (${r.status})`);
+          return r.json();
         }).finally(() => {
           statusEl.textContent = '';
           validateControls();
@@ -92,7 +451,7 @@
         }).catch(() => statusEl.textContent = 'Error loading centers.');
       }
 
-      centerSelect.addEventListener('change', function() {
+      centerSelect.addEventListener('change', function () {
         var center = this.value;
         counselorSelect.innerHTML = '<option value="">Loading...</option>';
         counselorSelect.disabled = true;
@@ -104,96 +463,245 @@
         fetchJson(`${API_BASE}?action=getcounselors&center=${encodeURIComponent(center)}`).then(data => {
           if (data.ok && data.counselors) {
             counselorSelect.innerHTML = '<option value="ALL">All Counselors</option>';
-            data.counselors.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => {
-                counselorSelect.add(new Option(`${c.name} (${c.employeeId})`, c.employeeId));
+            data.counselors.sort((a, b) => a.name.localeCompare(b.name)).forEach(c => {
+              counselorSelect.add(new Option(`${c.name} (${c.employeeId})`, c.employeeId));
             });
             counselorSelect.disabled = false;
           }
         }).catch(() => statusEl.textContent = 'Error loading counselors.');
       });
-      
+
       function validateControls() {
         btnRun.disabled = !centerSelect.value || !counselorSelect.value || !fromEl.value || !toEl.value;
       }
-      
+
       [centerSelect, counselorSelect, fromEl, toEl].forEach(el => el.addEventListener('change', validateControls));
 
+      // ── Color palette for charts ─────────────────────────────
+      var chartColors = [
+        '#1434A4', '#FFC107', '#e74c3c', '#27ae60', '#8e44ad',
+        '#e67e22', '#2980b9', '#16a085', '#d35400', '#c0392b',
+        '#7f8c8d', '#2c3e50', '#f39c12', '#1abc9c'
+      ];
+
+      // ── Render Charts ────────────────────────────────────────
+      function renderCharts(sortedDates, dailyDataArr, totalDispositions) {
+
+        destroyCharts();
+        chartsSection.style.display = 'block';
+        chartsPlaceholder.style.display = 'none';
+
+        var labels = sortedDates.map(function (d) {
+          return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        });
+
+        var assignedArr = dailyDataArr.map(function (d) { return d.assigned; });
+        var actionedArr = dailyDataArr.map(function (d) { return d.actioned; });
+        var completionArr = dailyDataArr.map(function (d) { return d.completion; });
+        var missedArr = dailyDataArr.map(function (d) { return d.assigned - d.actioned; });
+
+        // 1) Daily Trend: Assigned vs Actioned
+        chartInstances.trend = new Chart(document.getElementById('trendChart'), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Assigned', data: assignedArr,
+                borderColor: '#1434A4', backgroundColor: 'rgba(20,52,164,0.08)',
+                fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2.5
+              },
+              {
+                label: 'Actioned', data: actionedArr,
+                borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.08)',
+                fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2.5
+              }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+          }
+        });
+
+        // 2) Completion Rate Trend
+        chartInstances.completion = new Chart(document.getElementById('completionChart'), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Completion %', data: completionArr,
+              borderColor: '#FFC107', backgroundColor: 'rgba(255,193,7,0.1)',
+              fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2.5
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: { callbacks: { label: function (ctx) { return ctx.parsed.y.toFixed(1) + '%'; } } },
+              annotation: undefined
+            },
+            scales: {
+              y: {
+                beginAtZero: true, max: 100,
+                ticks: { callback: function (v) { return v + '%'; } }
+              }
+            }
+          }
+        });
+
+        // 3) Disposition Pie
+        var dispLabels = Object.keys(totalDispositions);
+        var dispValues = dispLabels.map(function (k) { return totalDispositions[k]; });
+        chartInstances.disposition = new Chart(document.getElementById('dispositionChart'), {
+          type: 'doughnut',
+          data: {
+            labels: dispLabels,
+            datasets: [{
+              data: dispValues,
+              backgroundColor: chartColors.slice(0, dispLabels.length),
+              borderWidth: 2, borderColor: '#fff'
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: function (ctx) {
+                    var total = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+                    var pct = total > 0 ? (ctx.parsed / total * 100).toFixed(1) : 0;
+                    return ctx.label + ': ' + ctx.parsed + ' (' + pct + '%)';
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        // 4) Daily Missed Leads Bar
+        chartInstances.missed = new Chart(document.getElementById('missedChart'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Missed Leads', data: missedArr,
+              backgroundColor: missedArr.map(function (v) { return v > 0 ? 'rgba(231,76,60,0.7)' : 'rgba(39,174,96,0.7)'; }),
+              borderColor: missedArr.map(function (v) { return v > 0 ? '#e74c3c' : '#27ae60'; }),
+              borderWidth: 1, borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+          }
+        });
+      }
+
+      // ── Render Report ────────────────────────────────────────
       function renderReport(report, employeeCodeFilter) {
-          let totalAssigned = 0, totalActioned = 0;
-          summaryKpisEl.innerHTML = ''; reportDetailsEl.innerHTML = '';
-          var sortedDates = Object.keys(report).sort((a, b) => new Date(b) - new Date(a));
-          
-          if (sortedDates.length === 0) {
-              summaryKpisEl.innerHTML = '<p>No data found for the selected criteria.</p>'; return;
+        let totalAssigned = 0, totalActioned = 0;
+        var totalDispositions = {};
+        var dailyDataArr = [];
+        summaryKpisEl.innerHTML = ''; reportDetailsEl.innerHTML = '';
+        var sortedDates = Object.keys(report).sort((a, b) => new Date(a) - new Date(b));
+
+        if (sortedDates.length === 0) {
+          summaryKpisEl.innerHTML = '<p class="placeholder-text">No data found for the selected criteria.</p>';
+          chartsSection.style.display = 'none';
+          chartsPlaceholder.style.display = 'block';
+          return;
+        }
+
+        sortedDates.forEach(function (date) {
+          const allCounselorDataForDay = report[date] || {};
+          let dailyData;
+
+          if (employeeCodeFilter === 'ALL') {
+            dailyData = { assignedCount: 0, actionedCount: 0, dispositions: {} };
+            for (const empId in allCounselorDataForDay) {
+              dailyData.assignedCount += allCounselorDataForDay[empId].assignedCount;
+              dailyData.actionedCount += allCounselorDataForDay[empId].actionedCount;
+              for (const [action, count] of Object.entries(allCounselorDataForDay[empId].dispositions)) {
+                dailyData.dispositions[action] = (dailyData.dispositions[action] || 0) + count;
+              }
+            }
+          } else {
+            dailyData = allCounselorDataForDay[employeeCodeFilter];
           }
 
-          sortedDates.forEach(function(date) {
-              const allCounselorDataForDay = report[date] || {};
-              let dailyData;
+          if (!dailyData || dailyData.assignedCount === 0 && dailyData.actionedCount === 0) return;
 
-              if (employeeCodeFilter === 'ALL') {
-                  dailyData = { assignedCount: 0, actionedCount: 0, dispositions: {} };
-                  for (const empId in allCounselorDataForDay) {
-                      dailyData.assignedCount += allCounselorDataForDay[empId].assignedCount;
-                      dailyData.actionedCount += allCounselorDataForDay[empId].actionedCount;
-                      for (const [action, count] of Object.entries(allCounselorDataForDay[empId].dispositions)) {
-                          dailyData.dispositions[action] = (dailyData.dispositions[action] || 0) + count;
-                      }
-                  }
-              } else {
-                  dailyData = allCounselorDataForDay[employeeCodeFilter];
-              }
+          dailyData.dueActionsCount = dailyData.assignedCount - dailyData.actionedCount;
+          dailyData.completionPercentage = dailyData.assignedCount > 0 ? (dailyData.actionedCount / dailyData.assignedCount) * 100 : 0;
 
-              if (!dailyData || dailyData.assignedCount === 0 && dailyData.actionedCount === 0) return;
+          totalAssigned += dailyData.assignedCount;
+          totalActioned += dailyData.actionedCount;
 
-              // These are now calculated based on the accurate backend data
-              dailyData.dueActionsCount = dailyData.assignedCount - dailyData.actionedCount;
-              dailyData.completionPercentage = dailyData.assignedCount > 0 ? (dailyData.actionedCount / dailyData.assignedCount) * 100 : 0;
-              
-              totalAssigned += dailyData.assignedCount; 
-              totalActioned += dailyData.actionedCount;
+          // Accumulate for charts
+          dailyDataArr.push({
+            date: date,
+            assigned: dailyData.assignedCount,
+            actioned: dailyData.actionedCount,
+            completion: parseFloat(dailyData.completionPercentage.toFixed(1))
+          });
 
-              let dispositionHtml = 'No actions taken.';
-              if(Object.keys(dailyData.dispositions).length > 0) {
-                  dispositionHtml = '<table class="disposition-table"><thead><tr><th>Disposition</th><th>Count</th></tr></thead><tbody>';
-                  for(const [action, count] of Object.entries(dailyData.dispositions)) { dispositionHtml += `<tr><td>${action}</td><td>${count}</td></tr>`; }
-                  dispositionHtml += '</tbody></table>';
-              }
-              const completionColor = dailyData.completionPercentage < 90 ? 'style="color:#c01e1e;"' : '';
-              const dayCardHtml = `
+          // Total dispositions for pie chart
+          for (var action in dailyData.dispositions) {
+            totalDispositions[action] = (totalDispositions[action] || 0) + dailyData.dispositions[action];
+          }
+
+          let dispositionHtml = '<p class="placeholder-text">No actions taken.</p>';
+          if (Object.keys(dailyData.dispositions).length > 0) {
+            dispositionHtml = '<table class="disposition-table"><thead><tr><th>Disposition</th><th>Count</th></tr></thead><tbody>';
+            for (const [action, count] of Object.entries(dailyData.dispositions)) { dispositionHtml += `<tr><td>${action}</td><td>${count}</td></tr>`; }
+            dispositionHtml += '</tbody></table>';
+          }
+          const completionColor = dailyData.completionPercentage < 90 ? 'style="color:#e74c3c;"' : 'style="color:#27ae60;"';
+          const dayCardHtml = `
                   <div class="day-card">
-                      <div class="day-header">${new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                      <div class="day-header"><i class="fa fa-calendar-day"></i> ${new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                       <div class="kpi-grid">
                           <div class="card"><div class="title">Assigned</div><div class="value">${dailyData.assignedCount}</div></div>
-                          <div class="card"><div class="title">Actioned</div><div class="value">${dailyData.actionedCount}</div></div>
-                          <div class="card"><div class="title">Due (Missed)</div><div class="value">${dailyData.dueActionsCount}</div></div>
-                          <div class="card"><div class="title">Completion</div><div class="value" ${completionColor}>${dailyData.completionPercentage.toFixed(1)}%</div></div>
+                          <div class="card success"><div class="title">Actioned</div><div class="value">${dailyData.actionedCount}</div></div>
+                          <div class="card danger"><div class="title">Due (Missed)</div><div class="value">${dailyData.dueActionsCount}</div></div>
+                          <div class="card accent"><div class="title">Completion</div><div class="value" ${completionColor}>${dailyData.completionPercentage.toFixed(1)}%</div></div>
                       </div>
-                      <h3 style="margin-top: 20px;">Dispositions</h3>
+                      <h3 style="margin-top: 20px; color: var(--primary);"><i class="fa fa-list-check"></i> Dispositions</h3>
                       ${dispositionHtml}
                   </div>`;
-              reportDetailsEl.innerHTML += dayCardHtml;
-          });
-          
-          let totalDue = totalAssigned - totalActioned;
-          const totalCompletion = totalAssigned > 0 ? (totalActioned / totalAssigned) * 100 : 0;
-          const totalCompletionColor = totalCompletion < 90 ? 'style="color:#c01e1e;"' : '';
-          summaryKpisEl.innerHTML = `
+          reportDetailsEl.innerHTML += dayCardHtml;
+        });
+
+        let totalDue = totalAssigned - totalActioned;
+        const totalCompletion = totalAssigned > 0 ? (totalActioned / totalAssigned) * 100 : 0;
+        const totalCompletionColor = totalCompletion < 90 ? ' danger' : ' success';
+        summaryKpisEl.innerHTML = `
             <div class="card"><div class="title">Total Assigned</div><div class="value">${totalAssigned}</div></div>
-            <div class="card"><div class="title">Total Actioned</div><div class="value">${totalActioned}</div></div>
-            <div class="card"><div class="title">Total Due (Missed)</div><div class="value">${totalDue}</div></div>
-            <div class="card"><div class="title">Completion Rate</div><div class="value" ${totalCompletionColor}>${totalCompletion.toFixed(1)}%</div></div>`;
+            <div class="card success"><div class="title">Total Actioned</div><div class="value">${totalActioned}</div></div>
+            <div class="card danger"><div class="title">Total Missed</div><div class="value">${totalDue}</div></div>
+            <div class="card${totalCompletionColor}"><div class="title">Completion Rate</div><div class="value">${totalCompletion.toFixed(1)}%</div></div>`;
+
+        // Render charts with the collected data — pass chronologically sorted
+        renderCharts(
+          dailyDataArr.map(function (d) { return d.date; }),
+          dailyDataArr,
+          totalDispositions
+        );
       }
-      
-      btnRun.addEventListener('click', function() {
+
+      btnRun.addEventListener('click', function () {
         var center = centerSelect.value; var employeeCode = counselorSelect.value;
         var from = fromEl.value; var to = toEl.value;
         counselorNameDisplay.textContent = `${center} - ${counselorSelect.options[counselorSelect.selectedIndex].text}`;
-        // The backend parameter is just employeeCode, but we handle "ALL" now
         var url = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(employeeCode)}`;
         fetchJson(url).then(data => {
-            if (data.ok) { renderReport(data.report, employeeCode); statusEl.textContent = 'Report loaded!'; } 
-            else { statusEl.textContent = `Error: ${data.error || 'Unknown error'}`; }
+          if (data.ok) { renderReport(data.report, employeeCode); statusEl.textContent = 'Report loaded!'; }
+          else { statusEl.textContent = `Error: ${data.error || 'Unknown error'}`; }
         }).catch(() => statusEl.textContent = 'Failed to fetch report.');
       });
 
@@ -205,56 +713,55 @@
         btnExportMaster.disabled = true;
 
         try {
-            const counselorsData = {};
-            const allDates = new Set(); 
+          const counselorsData = {};
+          const allDates = new Set();
 
-            statusEl.textContent = 'Fetching all centers...';
-            const centersResponse = await fetch(`${API_BASE}?action=getcenters`);
-            const centersData = await centersResponse.json();
-            if (!centersData.ok) throw new Error('Could not fetch centers.');
+          statusEl.textContent = 'Fetching all centers...';
+          const centersResponse = await fetch(`${API_BASE}?action=getcenters`);
+          const centersData = await centersResponse.json();
+          if (!centersData.ok) throw new Error('Could not fetch centers.');
 
-            for (const center of centersData.centers) {
-                statusEl.textContent = `Fetching counselors for ${center}...`;
-                const counselorsResponse = await fetch(`${API_BASE}?action=getcounselors&center=${encodeURIComponent(center)}`);
-                const centerCounselorsData = await counselorsResponse.json();
-                if (!centerCounselorsData.ok) continue;
+          for (const center of centersData.centers) {
+            statusEl.textContent = `Fetching counselors for ${center}...`;
+            const counselorsResponse = await fetch(`${API_BASE}?action=getcounselors&center=${encodeURIComponent(center)}`);
+            const centerCounselorsData = await counselorsResponse.json();
+            if (!centerCounselorsData.ok) continue;
 
-                for (const counselor of centerCounselorsData.counselors) {
-                    statusEl.textContent = `Fetching data for ${counselor.name} in ${center}...`;
-                    const reportUrl = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(counselor.employeeId)}`;
-                    
-                    try {
-                        const reportResponse = await fetch(reportUrl);
-                        const reportData = await reportResponse.json();
+            for (const counselor of centerCounselorsData.counselors) {
+              statusEl.textContent = `Fetching data for ${counselor.name} in ${center}...`;
+              const reportUrl = `${API_BASE}?action=advancedreportv2&center=${encodeURIComponent(center)}&from=${from}&to=${to}&employeeCode=${encodeURIComponent(counselor.employeeId)}`;
 
-                        if (reportData.ok && reportData.report) {
-                            const counselorKey = `${center}-${counselor.employeeId}`;
-                            if (!counselorsData[counselorKey]) {
-                                counselorsData[counselorKey] = { Center: center, 'Counsellor Name': counselor.name, 'Employee ID': counselor.employeeId, daily: {}, totalActioned: 0, totalAssigned: 0 };
-                            }
-                            for (const date in reportData.report) {
-                                allDates.add(date);
-                                // Correctly access the nested data for the specific employee
-                                const day = reportData.report[date][counselor.employeeId];
-                                if (day) {
-                                    counselorsData[counselorKey].daily[date] = { Acted: day.actionedCount, Assigned: day.assignedCount };
-                                    counselorsData[counselorKey].totalActioned += day.actionedCount;
-                                    counselorsData[counselorKey].totalAssigned += day.assignedCount;
-                                }
-                            }
-                        }
-                    } catch (counselorError) {
-                        console.error(`Skipping counselor ${counselor.name} due to an error:`, counselorError);
-                        statusEl.textContent = `Skipping ${counselor.name}...`;
+              try {
+                const reportResponse = await fetch(reportUrl);
+                const reportData = await reportResponse.json();
+
+                if (reportData.ok && reportData.report) {
+                  const counselorKey = `${center}-${counselor.employeeId}`;
+                  if (!counselorsData[counselorKey]) {
+                    counselorsData[counselorKey] = { Center: center, 'Counsellor Name': counselor.name, 'Employee ID': counselor.employeeId, daily: {}, totalActioned: 0, totalAssigned: 0 };
+                  }
+                  for (const date in reportData.report) {
+                    allDates.add(date);
+                    const day = reportData.report[date][counselor.employeeId];
+                    if (day) {
+                      counselorsData[counselorKey].daily[date] = { Acted: day.actionedCount, Assigned: day.assignedCount };
+                      counselorsData[counselorKey].totalActioned += day.actionedCount;
+                      counselorsData[counselorKey].totalAssigned += day.assignedCount;
                     }
+                  }
                 }
+              } catch (counselorError) {
+                console.error(`Skipping counselor ${counselor.name} due to an error:`, counselorError);
+                statusEl.textContent = `Skipping ${counselor.name}...`;
+              }
             }
+          }
 
-            statusEl.textContent = 'Data compiled. Generating HTML report...';
-            const sortedDateRange = Array.from(allDates).sort();
-            generateAndDownloadHtml(counselorsData, sortedDateRange);
+          statusEl.textContent = 'Data compiled. Generating HTML report...';
+          const sortedDateRange = Array.from(allDates).sort();
+          generateAndDownloadHtml(counselorsData, sortedDateRange);
 
-        } catch (error) { statusEl.textContent = `Error during export: ${error.message}`; } 
+        } catch (error) { statusEl.textContent = `Error during export: ${error.message}`; }
         finally { btnExportMaster.disabled = false; statusEl.textContent = 'Master export complete!'; }
       }
 
@@ -262,41 +769,41 @@
         const colorPalette = ['#FFFACD', '#F5F5F5', '#ADD8E6', '#F0FFF0', '#E6E6FA', '#FFF0F5', '#F0F8FF', '#FAEBD7'];
         const centerColors = {};
         let colorIndex = 0;
-        
+
         let tableRows = '';
         const dailyTotals = dateRange.reduce((acc, date) => ({ ...acc, [date]: { Acted: 0, Assigned: 0 } }), {});
 
         const sortedData = Object.values(data).sort((a, b) => {
-            if (a.Center < b.Center) return -1;
-            if (a.Center > b.Center) return 1;
-            return a['Counsellor Name'].localeCompare(b['Counsellor Name']);
+          if (a.Center < b.Center) return -1;
+          if (a.Center > b.Center) return 1;
+          return a['Counsellor Name'].localeCompare(b['Counsellor Name']);
         });
 
         sortedData.forEach(counselor => {
-            if (!centerColors[counselor.Center]) {
-                centerColors[counselor.Center] = colorPalette[colorIndex % colorPalette.length];
-                colorIndex++;
-            }
-            const rowColor = centerColors[counselor.Center];
+          if (!centerColors[counselor.Center]) {
+            centerColors[counselor.Center] = colorPalette[colorIndex % colorPalette.length];
+            colorIndex++;
+          }
+          const rowColor = centerColors[counselor.Center];
 
-            let rowHtml = `<tr style="background-color:${rowColor};"><td><b>${counselor.Center}</b></td><td>${counselor['Counsellor Name']}</td><td>${counselor['Employee ID']}</td>`;
-            dateRange.forEach(date => {
-                const dayData = counselor.daily[date];
-                const acted = dayData ? dayData.Acted : 0;
-                const assigned = dayData ? dayData.Assigned : 0;
-                rowHtml += `<td>${assigned}</td><td>${acted}</td>`;
-                dailyTotals[date].Acted += acted;
-                dailyTotals[date].Assigned += assigned;
-            });
-            const completion = counselor.totalAssigned > 0 ? (counselor.totalActioned / counselor.totalAssigned) * 100 : 0;
-            const remarks = completion < 90 ? 'Review Needed' : 'OK';
-            rowHtml += `<td>${completion.toFixed(1)}%</td><td>${remarks}</td></tr>`;
-            tableRows += rowHtml;
+          let rowHtml = `<tr style="background-color:${rowColor};"><td><b>${counselor.Center}</b></td><td>${counselor['Counsellor Name']}</td><td>${counselor['Employee ID']}</td>`;
+          dateRange.forEach(date => {
+            const dayData = counselor.daily[date];
+            const acted = dayData ? dayData.Acted : 0;
+            const assigned = dayData ? dayData.Assigned : 0;
+            rowHtml += `<td>${assigned}</td><td>${acted}</td>`;
+            dailyTotals[date].Acted += acted;
+            dailyTotals[date].Assigned += assigned;
+          });
+          const completion = counselor.totalAssigned > 0 ? (counselor.totalActioned / counselor.totalAssigned) * 100 : 0;
+          const remarks = completion < 90 ? 'Review Needed' : 'OK';
+          rowHtml += `<td>${completion.toFixed(1)}%</td><td>${remarks}</td></tr>`;
+          tableRows += rowHtml;
         });
 
         let totalRowHtml = '<tr class="total-row"><td></td><td colspan="2">Total</td>';
         dateRange.forEach(date => {
-            totalRowHtml += `<td>${dailyTotals[date].Assigned}</td><td>${dailyTotals[date].Acted}</td>`;
+          totalRowHtml += `<td>${dailyTotals[date].Assigned}</td><td>${dailyTotals[date].Acted}</td>`;
         });
         totalRowHtml += '<td colspan="2"></td></tr>';
 
@@ -379,16 +886,17 @@
       const minDate = '2025-09-21';
       fromEl.min = minDate;
       toEl.min = minDate;
-      
+
       const today = new Date();
       const todayStr = today.toISOString().slice(0, 10);
-      
+
       fromEl.value = minDate;
       toEl.value = todayStr;
-      
+
       populateCenters();
 
     })();
   </script>
 </body>
+
 </html>
